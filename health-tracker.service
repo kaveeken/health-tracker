@@ -1,0 +1,16 @@
+[Unit]
+Description=Health Tracker Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/health-tracker
+Environment=TELEGRAM_BOT_TOKEN=your_token_here
+Environment=ALLOWED_USER_IDS=your_user_id_here
+ExecStart=/usr/bin/python3 /home/pi/health-tracker/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

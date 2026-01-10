@@ -1,0 +1,14 @@
+[project]
+name = "health-tracker"
+version = "0.1.0"
+description = "Telegram bot for logging health and exercise data"
+requires-python = ">=3.11"
+dependencies = [
+    "python-telegram-bot>=21.0",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
