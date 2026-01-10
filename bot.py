@@ -167,9 +167,13 @@ Only include non-deleted entries (WHERE deleted_at IS NULL when joining with raw
 
 Answer the query concisely. If a chart would help, generate one with matplotlib and save it to /tmp/chart.png, then mention the file path.
 """
-        # Run Claude Code
+        # Run Claude Code with pre-approved permissions
         result = subprocess.run(
-            ["claude", "-p", prompt],
+            [
+                "claude",
+                "-p", prompt,
+                "--allowedTools", "Bash(sqlite3*),Bash(python*),Write(/tmp/*)",
+            ],
             capture_output=True,
             text=True,
             timeout=120,
