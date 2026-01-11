@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS raw_entries (
     raw_text TEXT NOT NULL,
     original_text TEXT NOT NULL,
     parsed_json TEXT,
-    entry_type TEXT CHECK (entry_type IN ('exercise', 'hr', 'hrv', 'temp', 'weight', 'unknown')),
+    entry_type TEXT CHECK (entry_type IN ('exercise', 'hr', 'hrv', 'temp', 'weight', 'cp', 'unknown')),
     parse_error TEXT,
     deleted_at DATETIME
 );
@@ -76,3 +76,14 @@ CREATE TABLE IF NOT EXISTS bodyweight (
 );
 
 CREATE INDEX IF NOT EXISTS idx_bodyweight_timestamp ON bodyweight(timestamp);
+
+-- Control pause (breath hold)
+CREATE TABLE IF NOT EXISTS control_pause (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
+    seconds INTEGER NOT NULL CHECK (seconds > 0 AND seconds < 600),
+    context TEXT CHECK (context IN ('morning', 'evening', NULL)),
+    timestamp DATETIME NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_control_pause_timestamp ON control_pause(timestamp);

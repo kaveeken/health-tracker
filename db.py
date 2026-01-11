@@ -15,6 +15,7 @@ from parser import (
     ParsedHRV,
     ParsedTemperature,
     ParsedBodyweight,
+    ParsedControlPause,
     get_entry_type,
 )
 
@@ -254,6 +255,19 @@ class Database:
                         parsed.timestamp.isoformat(),
                     )
                 )
+            case ParsedControlPause():
+                conn.execute(
+                    """
+                    INSERT INTO control_pause (entry_id, seconds, context, timestamp)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        entry_id,
+                        parsed.seconds,
+                        parsed.context,
+                        parsed.timestamp.isoformat(),
+                    )
+                )
 
     def _delete_typed_entry(self, conn: sqlite3.Connection, entry_id: int, entry_type: str):
         """Delete from the appropriate typed table."""
@@ -263,6 +277,7 @@ class Database:
             "hrv": "hrv",
             "temp": "temperature",
             "weight": "bodyweight",
+            "cp": "control_pause",
         }
         table = table_map.get(entry_type)
         if table:
@@ -297,5 +312,9 @@ def format_deleted_response(info: dict) -> str:
     elif entry_type == "weight":
         bf = f" ({parsed['bodyfat_pct']}% BF)" if parsed.get('bodyfat_pct') else ""
         return f"deleted Weight {parsed['kg']}kg{bf} [{info['hash']}]"
+
+    elif entry_type == "cp":
+        ctx = f" ({parsed['context']})" if parsed.get('context') else ""
+        return f"deleted CP {parsed['seconds']}s{ctx} [{info['hash']}]"
 
     return f"deleted [{info['hash']}]"

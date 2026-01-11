@@ -111,7 +111,26 @@ class ParsedBodyweight:
         }
 
 
-ParsedEntry = ParsedExercise | ParsedHeartRate | ParsedHRV | ParsedTemperature | ParsedBodyweight
+@dataclass
+class ParsedControlPause:
+    seconds: int
+    context: Optional[str]
+    timestamp: datetime
+
+    def format_response(self) -> str:
+        ctx = f" ({self.context})" if self.context else ""
+        return f"CP {self.seconds}s{ctx}"
+
+    def to_dict(self) -> dict:
+        return {
+            "type": "cp",
+            "seconds": self.seconds,
+            "context": self.context,
+            "timestamp": self.timestamp.isoformat()
+        }
+
+
+ParsedEntry = ParsedExercise | ParsedHeartRate | ParsedHRV | ParsedTemperature | ParsedBodyweight | ParsedControlPause
 
 
 class Parser:
@@ -152,6 +171,8 @@ class Parser:
             return self._parse_temperature(tokens[1:], timestamp)
         elif first in ("weight", "bw"):
             return self._parse_bodyweight(tokens[1:], timestamp)
+        elif first in ("cp", "pause"):
+            return self._parse_control_pause(tokens[1:], timestamp)
         else:
             # Must be an exercise
             return self._parse_exercise(tokens, timestamp)
@@ -340,6 +361,28 @@ class Parser:
 
         return ParsedBodyweight(kg=kg, bodyfat_pct=bodyfat_pct, timestamp=timestamp)
 
+    def _parse_control_pause(self, tokens: list[str], timestamp: datetime) -> ParsedControlPause:
+        """Parse control pause: cp SECONDS [context]"""
+        if not tokens:
+            raise ValueError("Control pause needs seconds value")
+
+        # Parse seconds (with optional 's' suffix)
+        seconds_match = re.match(r'^(\d+)s?$', tokens[0])
+        if not seconds_match:
+            raise ValueError(f"Invalid seconds value: {tokens[0]}")
+
+        seconds = int(seconds_match.group(1))
+        if seconds <= 0 or seconds >= 600:
+            raise ValueError("Seconds must be between 1 and 599")
+
+        context = None
+        if len(tokens) > 1:
+            ctx = tokens[1]
+            if ctx in ('morning', 'evening'):
+                context = ctx
+
+        return ParsedControlPause(seconds=seconds, context=context, timestamp=timestamp)
+
 
 def get_entry_type(parsed: ParsedEntry) -> str:
     """Get the entry type string for database storage."""
@@ -354,3 +397,5 @@ def get_entry_type(parsed: ParsedEntry) -> str:
             return "temp"
         case ParsedBodyweight():
             return "weight"
+        case ParsedControlPause():
+            return "cp"

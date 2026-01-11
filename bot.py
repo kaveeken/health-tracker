@@ -48,7 +48,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Health Tracker Bot\n\n"
         "Log exercises: squat 120 3x5\n"
-        "Log metrics: hr 65, hrv 45, temp 36.8, weight 82\n"
+        "Log metrics: hr 65, hrv 45, temp 36.8, weight 82, cp 45\n"
         "Correct: #hash squat 130 3x5\n"
         "Delete: del or del #hash\n"
         "Query: ? squat progress\n"
@@ -167,6 +167,7 @@ Tables:
 - hrv: entry_id, ms, metric, context, timestamp
 - temperature: entry_id, celsius, technique, timestamp
 - bodyweight: entry_id, kg, bodyfat_pct, timestamp
+- control_pause: entry_id, seconds, context (morning/evening), timestamp
 
 Only include non-deleted entries (WHERE deleted_at IS NULL when joining with raw_entries).
 

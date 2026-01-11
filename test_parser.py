@@ -9,6 +9,7 @@ from parser import (
     ParsedHRV,
     ParsedTemperature,
     ParsedBodyweight,
+    ParsedControlPause,
 )
 
 
@@ -398,6 +399,53 @@ class TestBodyweightParsing:
         assert result.bodyfat_pct == 17.5
 
 
+class TestControlPauseParsing:
+    """Test control pause entry parsing."""
+
+    def test_cp_basic(self, parser, now):
+        """Basic control pause with cp prefix."""
+        result = parser.parse("cp 45", now)
+        assert isinstance(result, ParsedControlPause)
+        assert result.seconds == 45
+        assert result.context is None
+
+    def test_pause_prefix(self, parser, now):
+        """Control pause with pause prefix."""
+        result = parser.parse("pause 30", now)
+        assert isinstance(result, ParsedControlPause)
+        assert result.seconds == 30
+
+    def test_cp_with_s_suffix(self, parser, now):
+        """Control pause with 's' suffix on seconds."""
+        result = parser.parse("cp 60s", now)
+        assert result.seconds == 60
+
+    def test_cp_with_morning_context(self, parser, now):
+        """Control pause with morning context."""
+        result = parser.parse("cp 45 morning", now)
+        assert result.seconds == 45
+        assert result.context == "morning"
+
+    def test_cp_with_evening_context(self, parser, now):
+        """Control pause with evening context."""
+        result = parser.parse("cp 50 evening", now)
+        assert result.seconds == 50
+        assert result.context == "evening"
+
+    def test_cp_invalid_context_ignored(self, parser, now):
+        """Invalid context is ignored."""
+        result = parser.parse("cp 40 afternoon", now)
+        assert result.seconds == 40
+        assert result.context is None
+
+    def test_cp_with_timestamp(self, parser, now):
+        """Control pause with timestamp."""
+        result = parser.parse("cp 35 morning @08:00", now)
+        assert result.seconds == 35
+        assert result.context == "morning"
+        assert result.timestamp.hour == 8
+
+
 # =============================================================================
 # Edge Cases and Error Handling
 # =============================================================================
@@ -447,6 +495,11 @@ class TestEdgeCases:
         with pytest.raises(ValueError, match="Bodyweight needs kg value"):
             parser.parse("weight", now)
 
+    def test_cp_no_value_raises(self, parser, now):
+        """Control pause without value raises ValueError."""
+        with pytest.raises(ValueError, match="Control pause needs seconds value"):
+            parser.parse("cp", now)
+
     def test_case_insensitive_prefixes(self, parser, now):
         """All prefixes are case insensitive."""
         assert isinstance(parser.parse("HR 70", now), ParsedHeartRate)
@@ -454,6 +507,8 @@ class TestEdgeCases:
         assert isinstance(parser.parse("TEMP 36.5", now), ParsedTemperature)
         assert isinstance(parser.parse("WEIGHT 80", now), ParsedBodyweight)
         assert isinstance(parser.parse("BW 80", now), ParsedBodyweight)
+        assert isinstance(parser.parse("CP 45", now), ParsedControlPause)
+        assert isinstance(parser.parse("PAUSE 45", now), ParsedControlPause)
 
     def test_extra_whitespace_handled(self, parser, now):
         """Extra whitespace is handled gracefully."""
@@ -496,6 +551,14 @@ class TestFormatResponse:
     def test_weight_format_with_bf(self, parser, now):
         result = parser.parse("weight 80 15", now)
         assert result.format_response() == "Weight 80.0kg (15.0% BF)"
+
+    def test_cp_format_with_context(self, parser, now):
+        result = parser.parse("cp 45 morning", now)
+        assert result.format_response() == "CP 45s (morning)"
+
+    def test_cp_format_no_context(self, parser, now):
+        result = parser.parse("cp 35", now)
+        assert result.format_response() == "CP 35s"
 
 
 # =============================================================================
@@ -540,3 +603,11 @@ class TestToDict:
         d = result.to_dict()
         assert d["type"] == "weight"
         assert d["kg"] == 80.0
+
+    def test_cp_to_dict(self, parser, now):
+        result = parser.parse("cp 45 morning", now)
+        d = result.to_dict()
+        assert d["type"] == "cp"
+        assert d["seconds"] == 45
+        assert d["context"] == "morning"
+        assert "timestamp" in d
