@@ -164,6 +164,40 @@ class TestAliasResolution:
         result = parser.parse("temp 37.2 tympanic", now)
         assert result.technique == "ear"
 
+    # Postprandial context aliases
+    def test_hr_context_alias_pp(self, parser, now):
+        """pp -> postprandial"""
+        result = parser.parse("hr 85 pp", now)
+        assert result.context == "postprandial"
+
+    def test_hr_context_alias_fed(self, parser, now):
+        """fed -> postprandial"""
+        result = parser.parse("hr 88 fed", now)
+        assert result.context == "postprandial"
+
+    def test_hr_context_alias_meal(self, parser, now):
+        """meal -> postprandial"""
+        result = parser.parse("hr 82 meal", now)
+        assert result.context == "postprandial"
+
+    # Temperature context aliases
+    def test_temp_context_alias_pp(self, parser, now):
+        """pp -> postprandial for temperature"""
+        result = parser.parse("temp 37.1 pp", now)
+        assert result.context == "postprandial"
+
+    def test_temp_with_technique_and_context(self, parser, now):
+        """Temperature with both technique and context."""
+        result = parser.parse("temp 37.2 oral pp", now)
+        assert result.technique == "oral"
+        assert result.context == "postprandial"
+
+    def test_temp_with_context_and_technique(self, parser, now):
+        """Temperature with context before technique (order shouldn't matter)."""
+        result = parser.parse("temp 37.2 pp oral", now)
+        assert result.technique == "oral"
+        assert result.context == "postprandial"
+
 
 # =============================================================================
 # Timestamp Parsing Tests
@@ -548,6 +582,10 @@ class TestFormatResponse:
         result = parser.parse("temp 36.6 oral", now)
         assert result.format_response() == "Temp 36.6°C (oral)"
 
+    def test_temp_format_with_context(self, parser, now):
+        result = parser.parse("temp 37.1 oral pp", now)
+        assert result.format_response() == "Temp 37.1°C (oral) [postprandial]"
+
     def test_weight_format_with_bf(self, parser, now):
         result = parser.parse("weight 80 15", now)
         assert result.format_response() == "Weight 80.0kg (15.0% BF)"
@@ -597,6 +635,14 @@ class TestToDict:
         d = result.to_dict()
         assert d["type"] == "temp"
         assert d["celsius"] == 36.6
+
+    def test_temp_to_dict_with_context(self, parser, now):
+        result = parser.parse("temp 37.1 oral pp", now)
+        d = result.to_dict()
+        assert d["type"] == "temp"
+        assert d["celsius"] == 37.1
+        assert d["technique"] == "oral"
+        assert d["context"] == "postprandial"
 
     def test_weight_to_dict(self, parser, now):
         result = parser.parse("weight 80", now)

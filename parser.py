@@ -77,17 +77,20 @@ class ParsedHRV:
 class ParsedTemperature:
     celsius: float
     technique: Optional[str]
+    context: Optional[str]
     timestamp: datetime
 
     def format_response(self) -> str:
         tech = f" ({self.technique})" if self.technique else ""
-        return f"Temp {self.celsius}°C{tech}"
+        ctx = f" [{self.context}]" if self.context else ""
+        return f"Temp {self.celsius}°C{tech}{ctx}"
 
     def to_dict(self) -> dict:
         return {
             "type": "temp",
             "celsius": self.celsius,
             "technique": self.technique,
+            "context": self.context,
             "timestamp": self.timestamp.isoformat()
         }
 
@@ -143,7 +146,7 @@ class Parser:
         if path.exists():
             with open(path) as f:
                 return json.load(f)
-        return {"exercises": {}, "hr_contexts": {}, "hrv_metrics": {}, "temp_techniques": {}}
+        return {"exercises": {}, "hr_contexts": {}, "hrv_metrics": {}, "temp_techniques": {}, "temp_contexts": {}}
 
     def parse(self, text: str, now: Optional[datetime] = None) -> ParsedEntry:
         """Parse a health tracker entry from text."""
@@ -300,7 +303,7 @@ class Parser:
             ctx_raw = tokens[1]
             context = self.aliases.get("hr_contexts", {}).get(ctx_raw, ctx_raw)
             # Validate context
-            valid = {'resting', 'post-workout', 'active', 'stressed'}
+            valid = {'resting', 'post-workout', 'active', 'stressed', 'postprandial'}
             if context not in valid:
                 context = None
 
@@ -322,28 +325,35 @@ class Parser:
             elif token in ("rmssd", "sdnn"):
                 metric = token
             # Check if it's a context
-            elif token in ("morning", "resting", "post-workout"):
+            elif token in ("morning", "resting", "post-workout", "postprandial"):
                 context = token
 
         return ParsedHRV(ms=ms, metric=metric, context=context, timestamp=timestamp)
 
     def _parse_temperature(self, tokens: list[str], timestamp: datetime) -> ParsedTemperature:
-        """Parse temperature: temp CELSIUS [technique]"""
+        """Parse temperature: temp CELSIUS [technique] [context]"""
         if not tokens:
             raise ValueError("Temperature needs Celsius value")
 
         celsius = float(tokens[0])
         technique = None
+        context = None
 
-        if len(tokens) > 1:
-            tech_raw = tokens[1]
-            technique = self.aliases.get("temp_techniques", {}).get(tech_raw, tech_raw)
-            # Validate technique
-            valid = {'underarm', 'forehead_ir', 'oral', 'ear'}
-            if technique not in valid:
-                technique = None
+        valid_techniques = {'underarm', 'forehead_ir', 'oral', 'ear'}
+        valid_contexts = {'postprandial'}
 
-        return ParsedTemperature(celsius=celsius, technique=technique, timestamp=timestamp)
+        for token in tokens[1:]:
+            # Try as technique first
+            resolved = self.aliases.get("temp_techniques", {}).get(token, token)
+            if resolved in valid_techniques:
+                technique = resolved
+                continue
+            # Try as context
+            resolved = self.aliases.get("temp_contexts", {}).get(token, token)
+            if resolved in valid_contexts:
+                context = resolved
+
+        return ParsedTemperature(celsius=celsius, technique=technique, context=context, timestamp=timestamp)
 
     def _parse_bodyweight(self, tokens: list[str], timestamp: datetime) -> ParsedBodyweight:
         """Parse bodyweight: weight/bw KG [bodyfat%]"""

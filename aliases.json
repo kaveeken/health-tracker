@@ -54,7 +54,11 @@
     "post": "post-workout",
     "active": "active",
     "stressed": "stressed",
-    "stress": "stressed"
+    "stress": "stressed",
+    "pp": "postprandial",
+    "postprandial": "postprandial",
+    "fed": "postprandial",
+    "meal": "postprandial"
   },
   "hrv_metrics": {
     "rmssd": "rmssd",
@@ -70,5 +74,11 @@
     "mouth": "oral",
     "ear": "ear",
     "tympanic": "ear"
+  },
+  "temp_contexts": {
+    "pp": "postprandial",
+    "postprandial": "postprandial",
+    "fed": "postprandial",
+    "meal": "postprandial"
   }
 }

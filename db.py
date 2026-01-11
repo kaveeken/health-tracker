@@ -232,13 +232,14 @@ class Database:
             case ParsedTemperature():
                 conn.execute(
                     """
-                    INSERT INTO temperature (entry_id, celsius, technique, timestamp)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO temperature (entry_id, celsius, technique, context, timestamp)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.celsius,
                         parsed.technique,
+                        parsed.context,
                         parsed.timestamp.isoformat(),
                     )
                 )
@@ -307,7 +308,8 @@ def format_deleted_response(info: dict) -> str:
 
     elif entry_type == "temp":
         tech = f" ({parsed['technique']})" if parsed.get('technique') else ""
-        return f"deleted Temp {parsed['celsius']}°C{tech} [{info['hash']}]"
+        ctx = f" [{parsed['context']}]" if parsed.get('context') else ""
+        return f"deleted Temp {parsed['celsius']}°C{tech}{ctx} [{info['hash']}]"
 
     elif entry_type == "weight":
         bf = f" ({parsed['bodyfat_pct']}% BF)" if parsed.get('bodyfat_pct') else ""

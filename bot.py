@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 ALLOWED_USERS = os.environ.get("ALLOWED_USER_IDS", "").split(",")
 ALLOWED_USERS = [int(uid.strip()) for uid in ALLOWED_USERS if uid.strip()]
-ALIAS_CATEGORIES = ("exercises", "hr_contexts", "hrv_metrics", "temp_techniques")
+ALIAS_CATEGORIES = ("exercises", "hr_contexts", "hrv_metrics", "temp_techniques", "temp_contexts")
 
 # Initialize parser and database
 parser = Parser()
@@ -165,7 +165,7 @@ Tables:
 - exercises: entry_id, name, weight_kg, reps (JSON array), rpe, timestamp
 - heart_rate: entry_id, bpm, context, timestamp
 - hrv: entry_id, ms, metric, context, timestamp
-- temperature: entry_id, celsius, technique, timestamp
+- temperature: entry_id, celsius, technique, context, timestamp
 - bodyweight: entry_id, kg, bodyfat_pct, timestamp
 - control_pause: entry_id, seconds, context (morning/evening), timestamp
 
