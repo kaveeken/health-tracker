@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Telegram bot for health tracker."""
 
+import json
 import logging
 import os
 import re
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 ALLOWED_USERS = os.environ.get("ALLOWED_USER_IDS", "").split(",")
 ALLOWED_USERS = [int(uid.strip()) for uid in ALLOWED_USERS if uid.strip()]
+ALIAS_CATEGORIES = ("exercises", "hr_contexts", "hrv_metrics", "temp_techniques")
 
 # Initialize parser and database
 parser = Parser()
@@ -49,7 +51,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Log metrics: hr 65, hrv 45, temp 36.8, weight 82\n"
         "Correct: #hash squat 130 3x5\n"
         "Delete: del or del #hash\n"
-        "Query: ? squat progress"
+        "Query: ? squat progress\n"
+        "Aliases: alias <term>"
     )
 
 
@@ -69,6 +72,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_delete(update, text)
     elif text.startswith("?"):
         await handle_query(update, text)
+    elif text.lower().startswith("alias"):
+        await handle_alias(update, text)
     else:
         await handle_new_entry(update, text)
 
@@ -198,6 +203,140 @@ Answer the query concisely. If a chart would help, generate one with matplotlib 
     except Exception as e:
         logger.exception("Error handling query")
         await update.message.reply_text(f"Query error: {e}")
+
+
+async def handle_alias(update: Update, text: str):
+    """Handle alias management (alias <search>, alias add, alias remove)."""
+    args = text[5:].strip()  # Remove 'alias' prefix
+
+    if not args:
+        await update.message.reply_text(
+            "Alias commands:\n"
+            "  alias <term> - Search aliases\n"
+            "  alias add <category> <abbrev> <name>\n"
+            "  alias remove <category> <abbrev>\n\n"
+            f"Categories: {', '.join(ALIAS_CATEGORIES)}"
+        )
+        return
+
+    # Parse subcommand
+    args_lower = args.lower()
+    if args_lower.startswith("add ") or args_lower == "add":
+        await _alias_add(update, args[4:].strip())
+    elif args_lower.startswith("remove ") or args_lower == "remove":
+        await _alias_remove(update, args[7:].strip())
+    else:
+        # It's a search term
+        await _alias_search(update, args)
+
+
+async def _alias_search(update: Update, term: str):
+    """Search aliases for a term."""
+    term_lower = term.lower()
+    results = []
+
+    for category, aliases in parser.aliases.items():
+        for abbrev, canonical in aliases.items():
+            if term_lower in abbrev.lower() or term_lower in canonical.lower():
+                results.append(f"{abbrev} → {canonical} ({category})")
+
+    if results:
+        await update.message.reply_text("\n".join(results))
+    else:
+        await update.message.reply_text(f"No aliases found for '{term}'")
+
+
+async def _alias_add(update: Update, args: str):
+    """Add a new alias."""
+    parts = args.split(maxsplit=2)
+    if len(parts) < 3:
+        await update.message.reply_text(
+            "Usage: alias add <category> <abbrev> <name>\n"
+            "Example: alias add exercises bp bench press"
+        )
+        return
+
+    category, abbrev, canonical = parts
+    category = category.lower()
+    abbrev = abbrev.lower()
+
+    if category not in ALIAS_CATEGORIES:
+        await update.message.reply_text(
+            f"Invalid category '{category}'\n"
+            f"Valid: {', '.join(ALIAS_CATEGORIES)}"
+        )
+        return
+
+    # Load, modify, save
+    aliases_path = Path(__file__).parent / "aliases.json"
+    try:
+        with open(aliases_path) as f:
+            aliases = json.load(f)
+
+        if abbrev in aliases.get(category, {}):
+            existing = aliases[category][abbrev]
+            await update.message.reply_text(
+                f"Alias '{abbrev}' already exists → {existing}\n"
+                "Remove it first to replace."
+            )
+            return
+
+        aliases.setdefault(category, {})[abbrev] = canonical
+
+        with open(aliases_path, "w") as f:
+            json.dump(aliases, f, indent=2)
+            f.write("\n")
+
+        # Reload parser aliases
+        parser.aliases = parser._load_aliases(None)
+
+        await update.message.reply_text(f"✓ Added: {abbrev} → {canonical} ({category})")
+    except Exception as e:
+        logger.exception("Error adding alias")
+        await update.message.reply_text(f"Error: {e}")
+
+
+async def _alias_remove(update: Update, args: str):
+    """Remove an alias."""
+    parts = args.split()
+    if len(parts) < 2:
+        await update.message.reply_text(
+            "Usage: alias remove <category> <abbrev>\n"
+            "Example: alias remove exercises bp"
+        )
+        return
+
+    category, abbrev = parts[0].lower(), parts[1].lower()
+
+    if category not in ALIAS_CATEGORIES:
+        await update.message.reply_text(
+            f"Invalid category '{category}'\n"
+            f"Valid: {', '.join(ALIAS_CATEGORIES)}"
+        )
+        return
+
+    aliases_path = Path(__file__).parent / "aliases.json"
+    try:
+        with open(aliases_path) as f:
+            aliases = json.load(f)
+
+        if abbrev not in aliases.get(category, {}):
+            await update.message.reply_text(f"Alias '{abbrev}' not found in {category}")
+            return
+
+        del aliases[category][abbrev]
+
+        with open(aliases_path, "w") as f:
+            json.dump(aliases, f, indent=2)
+            f.write("\n")
+
+        # Reload parser aliases
+        parser.aliases = parser._load_aliases(None)
+
+        await update.message.reply_text(f"✓ Removed: {abbrev} ({category})")
+    except Exception as e:
+        logger.exception("Error removing alias")
+        await update.message.reply_text(f"Error: {e}")
 
 
 def main():

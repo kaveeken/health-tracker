@@ -43,7 +43,9 @@
     "legpress": "leg press",
     "ext": "leg extension",
     "ham": "leg curl",
-    "hamstring": "leg curl"
+    "hamstring": "leg curl",
+    "dbbp": "dumbbell bench press",
+    "dbohp": "dumbbell overhead press"
   },
   "hr_contexts": {
     "rest": "resting",
