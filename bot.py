@@ -174,6 +174,7 @@ Only include non-deleted entries (WHERE deleted_at IS NULL when joining with raw
 Answer the query concisely. If a chart would help, generate one with matplotlib and save it to /tmp/chart.png, then mention the file path.
 """
         # Run Claude Code with pre-approved permissions
+        logger.info(f"Running claude query: {query[:50]}...")
         result = subprocess.run(
             [
                 "claude",
@@ -185,6 +186,9 @@ Answer the query concisely. If a chart would help, generate one with matplotlib 
             timeout=120,
             cwd=Path(__file__).parent
         )
+        logger.info(f"Claude returncode: {result.returncode}")
+        logger.info(f"Claude stdout length: {len(result.stdout)}")
+        logger.info(f"Claude stderr: {result.stderr[:200] if result.stderr else 'none'}")
 
         response = result.stdout.strip() or result.stderr.strip() or "No response"
 
