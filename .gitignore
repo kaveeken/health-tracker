@@ -5,3 +5,4 @@ __pycache__/
 /charts/
 *.png
 .venv/
+health-tracker.service
