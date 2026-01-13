@@ -171,7 +171,7 @@ Tables:
 
 Only include non-deleted entries (WHERE deleted_at IS NULL when joining with raw_entries).
 
-Answer the query concisely. If a chart would help, generate one with matplotlib and save it to /tmp/chart.png, then mention the file path.
+Answer the query concisely. If you need to write Python scripts, save them to /tmp/. If a chart would help, generate one with matplotlib and save it to /tmp/chart.png.
 """
         # Run Claude Code with pre-approved permissions
         logger.info(f"Running claude query: {query[:50]}...")
@@ -179,7 +179,9 @@ Answer the query concisely. If a chart would help, generate one with matplotlib 
             [
                 "claude",
                 "-p", prompt,
-                "--allowedTools", "Bash(sqlite3*),Bash(python*),Write(/tmp/*)",
+                "--model", "sonnet",
+                "--output-format", "json",
+                "--allowedTools", "Bash(sqlite3:*),Bash(python:*),Bash(python3:*),Write(/tmp/*)",
             ],
             capture_output=True,
             text=True,
@@ -187,10 +189,23 @@ Answer the query concisely. If a chart would help, generate one with matplotlib 
             cwd=Path(__file__).parent
         )
         logger.info(f"Claude returncode: {result.returncode}")
-        logger.info(f"Claude stdout length: {len(result.stdout)}")
         logger.info(f"Claude stderr: {result.stderr[:200] if result.stderr else 'none'}")
 
-        response = result.stdout.strip() or result.stderr.strip() or "No response"
+        # Parse JSON response for token usage and result
+        try:
+            data = json.loads(result.stdout)
+            usage = data.get("usage", {})
+            logger.info(
+                f"Claude tokens - input: {usage.get('input_tokens', 0)}, "
+                f"output: {usage.get('output_tokens', 0)}, "
+                f"cache_read: {usage.get('cache_read_input_tokens', 0)}, "
+                f"cache_creation: {usage.get('cache_creation_input_tokens', 0)}, "
+                f"cost_usd: ${data.get('total_cost_usd', 0):.4f}"
+            )
+            response = data.get("result", "") or "No response"
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse Claude JSON output: {result.stdout[:200]}")
+            response = result.stdout.strip() or result.stderr.strip() or "No response"
 
         # Check if a chart was generated
         chart_path = Path("/tmp/chart.png")
