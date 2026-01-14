@@ -78,6 +78,7 @@ class Database:
 
             entry_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
             self._insert_typed_entry(conn, entry_id, parsed)
+            self._insert_tags(conn, entry_id, parsed.tags)
             conn.commit()
 
         return hash_code
@@ -114,11 +115,13 @@ class Database:
                 )
             )
 
-            # Delete old typed entry
+            # Delete old typed entry and tags
             self._delete_typed_entry(conn, entry_id, old_type)
+            self._delete_tags(conn, entry_id)
 
-            # Insert new typed entry
+            # Insert new typed entry and tags
             self._insert_typed_entry(conn, entry_id, parsed)
+            self._insert_tags(conn, entry_id, parsed.tags)
 
             conn.commit()
 
@@ -282,6 +285,59 @@ class Database:
         table = table_map.get(entry_type)
         if table:
             conn.execute(f"DELETE FROM {table} WHERE entry_id = ?", (entry_id,))
+
+    def _insert_tags(self, conn: sqlite3.Connection, entry_id: int, tags: Optional[list[str]]):
+        """Insert tags for an entry, updating user_tags stats."""
+        if not tags:
+            return
+
+        now = datetime.now().isoformat()
+        for tag in tags:
+            # Upsert into user_tags
+            conn.execute(
+                """
+                INSERT INTO user_tags (tag, first_used, last_used, use_count)
+                VALUES (?, ?, ?, 1)
+                ON CONFLICT(tag) DO UPDATE SET
+                    last_used = excluded.last_used,
+                    use_count = use_count + 1
+                """,
+                (tag, now, now)
+            )
+            # Insert into entry_tags junction
+            conn.execute(
+                "INSERT INTO entry_tags (entry_id, tag) VALUES (?, ?)",
+                (entry_id, tag)
+            )
+
+    def _delete_tags(self, conn: sqlite3.Connection, entry_id: int):
+        """Delete tags for an entry (use_count is not decremented for simplicity)."""
+        conn.execute("DELETE FROM entry_tags WHERE entry_id = ?", (entry_id,))
+
+    def get_tag_count(self, tag: str, entry_type: str) -> int:
+        """Get count of entries with this tag for a specific entry type."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) FROM entry_tags et
+                JOIN raw_entries re ON et.entry_id = re.id
+                WHERE et.tag = ? AND re.entry_type = ? AND re.deleted_at IS NULL
+                """,
+                (tag, entry_type)
+            ).fetchone()
+            return row[0] if row else 0
+
+    def get_all_tags(self) -> list[dict]:
+        """Get all tags with usage statistics."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT tag, first_used, last_used, use_count
+                FROM user_tags
+                ORDER BY use_count DESC, last_used DESC
+                """
+            ).fetchall()
+            return [dict(row) for row in rows]
 
 
 def format_deleted_response(info: dict) -> str:

@@ -11,7 +11,7 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-from parser import Parser
+from parser import Parser, get_entry_type
 from db import Database, format_deleted_response
 
 # Configure logging
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 ALLOWED_USERS = os.environ.get("ALLOWED_USER_IDS", "").split(",")
 ALLOWED_USERS = [int(uid.strip()) for uid in ALLOWED_USERS if uid.strip()]
-ALIAS_CATEGORIES = ("exercises", "hr_contexts", "hrv_metrics", "temp_techniques", "temp_contexts")
+ALIAS_CATEGORIES = ("exercises", "hrv_metrics", "conditions", "tags")
 
 # Initialize parser and database
 parser = Parser()
@@ -74,6 +74,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_query(update, text)
     elif text.lower().startswith("alias"):
         await handle_alias(update, text)
+    elif text.lower() == "tags":
+        await handle_tags(update)
     else:
         await handle_new_entry(update, text)
 
@@ -84,6 +86,16 @@ async def handle_new_entry(update: Update, text: str):
         parsed = parser.parse(text)
         hash_code = db.create_entry(text, parsed)
         response = f"{parsed.format_response()} ✓ [{hash_code}]"
+
+        # Add tag count info if tags present
+        if parsed.tags:
+            entry_type = get_entry_type(parsed)
+            tag_counts = []
+            for tag in parsed.tags:
+                count = db.get_tag_count(tag, entry_type)
+                tag_counts.append(f"@{tag}: {count}")
+            response += f" ({', '.join(tag_counts)})"
+
         await update.message.reply_text(response)
     except ValueError as e:
         await update.message.reply_text(f"Parse error: {e}")
@@ -107,6 +119,16 @@ async def handle_correction(update: Update, text: str):
         parsed = parser.parse(new_text)
         if db.update_entry(hash_code, new_text, parsed):
             response = f"{parsed.format_response()} ✓ [{hash_code}]"
+
+            # Add tag count info if tags present
+            if parsed.tags:
+                entry_type = get_entry_type(parsed)
+                tag_counts = []
+                for tag in parsed.tags:
+                    count = db.get_tag_count(tag, entry_type)
+                    tag_counts.append(f"@{tag}: {count}")
+                response += f" ({', '.join(tag_counts)})"
+
             await update.message.reply_text(response)
         else:
             await update.message.reply_text(f"Entry [{hash_code}] not found")
@@ -357,6 +379,21 @@ async def _alias_remove(update: Update, args: str):
     except Exception as e:
         logger.exception("Error removing alias")
         await update.message.reply_text(f"Error: {e}")
+
+
+async def handle_tags(update: Update):
+    """Handle tags command - list all tags with usage stats."""
+    tags = db.get_all_tags()
+
+    if not tags:
+        await update.message.reply_text("No tags yet. Use @tagname with entries to create tags.")
+        return
+
+    lines = ["Tags (by usage):"]
+    for t in tags:
+        lines.append(f"  @{t['tag']}: {t['use_count']} uses")
+
+    await update.message.reply_text("\n".join(lines))
 
 
 def main():

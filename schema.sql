@@ -87,3 +87,20 @@ CREATE TABLE IF NOT EXISTS control_pause (
 );
 
 CREATE INDEX IF NOT EXISTS idx_control_pause_timestamp ON control_pause(timestamp);
+
+-- User tags (sources/instruments like @PS, @oura, @gym)
+CREATE TABLE IF NOT EXISTS user_tags (
+    tag TEXT PRIMARY KEY,
+    first_used DATETIME NOT NULL,
+    last_used DATETIME NOT NULL,
+    use_count INTEGER NOT NULL DEFAULT 1
+);
+
+-- Entry-tag junction table
+CREATE TABLE IF NOT EXISTS entry_tags (
+    entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL REFERENCES user_tags(tag) ON UPDATE CASCADE,
+    PRIMARY KEY (entry_id, tag)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entry_tags_tag ON entry_tags(tag);
