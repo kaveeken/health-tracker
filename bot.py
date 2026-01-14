@@ -248,13 +248,14 @@ Answer the query concisely. If you need to write Python scripts, save them to /t
 
 
 async def handle_alias(update: Update, text: str):
-    """Handle alias management (alias <search>, alias add, alias remove)."""
+    """Handle alias management (alias <search>, alias add, alias remove, alias list)."""
     args = text[5:].strip()  # Remove 'alias' prefix
 
     if not args:
         await update.message.reply_text(
             "Alias commands:\n"
             "  alias <term> - Search aliases\n"
+            "  alias list [category] - List aliases\n"
             "  alias add <category> <abbrev> <name>\n"
             "  alias remove <category> <abbrev>\n\n"
             f"Categories: {', '.join(ALIAS_CATEGORIES)}"
@@ -263,7 +264,9 @@ async def handle_alias(update: Update, text: str):
 
     # Parse subcommand
     args_lower = args.lower()
-    if args_lower.startswith("add ") or args_lower == "add":
+    if args_lower.startswith("list") and (len(args_lower) == 4 or args_lower[4] == " "):
+        await _alias_list(update, args[4:].strip())
+    elif args_lower.startswith("add ") or args_lower == "add":
         await _alias_add(update, args[4:].strip())
     elif args_lower.startswith("remove ") or args_lower == "remove":
         await _alias_remove(update, args[7:].strip())
@@ -286,6 +289,39 @@ async def _alias_search(update: Update, term: str):
         await update.message.reply_text("\n".join(results))
     else:
         await update.message.reply_text(f"No aliases found for '{term}'")
+
+
+async def _alias_list(update: Update, category: str):
+    """List aliases, optionally filtered by category."""
+    if not category:
+        # Show all categories with counts
+        lines = ["Alias categories:"]
+        for cat in ALIAS_CATEGORIES:
+            count = len(parser.aliases.get(cat, {}))
+            lines.append(f"  {cat}: {count} aliases")
+        lines.append(f"\nUse: alias list <category>")
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    category = category.lower()
+    if category not in ALIAS_CATEGORIES:
+        await update.message.reply_text(
+            f"Invalid category '{category}'\n"
+            f"Valid: {', '.join(ALIAS_CATEGORIES)}"
+        )
+        return
+
+    aliases = parser.aliases.get(category, {})
+    if not aliases:
+        await update.message.reply_text(f"No aliases in '{category}'")
+        return
+
+    # Sort by abbreviation and format
+    lines = [f"{category} aliases:"]
+    for abbrev in sorted(aliases.keys()):
+        lines.append(f"  {abbrev} → {aliases[abbrev]}")
+    lines.append(f"\n({len(aliases)} total)")
+    await update.message.reply_text("\n".join(lines))
 
 
 async def _alias_add(update: Update, args: str):
