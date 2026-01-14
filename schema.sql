@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS exercises (
     weight_kg REAL,
     reps TEXT NOT NULL,  -- JSON array e.g. [5,5,5]
     rpe REAL CHECK (rpe IS NULL OR (rpe >= 1 AND rpe <= 10)),
+    context TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS heart_rate (
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     bpm INTEGER NOT NULL CHECK (bpm > 0 AND bpm < 300),
     conditions TEXT,
+    context TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -50,6 +52,7 @@ CREATE TABLE IF NOT EXISTS hrv (
     ms REAL NOT NULL CHECK (ms > 0),
     metric TEXT NOT NULL DEFAULT 'rmssd' CHECK (metric IN ('rmssd', 'sdnn', 'other')),
     conditions TEXT,
+    context TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -61,6 +64,7 @@ CREATE TABLE IF NOT EXISTS temperature (
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     celsius REAL NOT NULL CHECK (celsius > 30 AND celsius < 45),
     conditions TEXT,
+    context TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -72,6 +76,7 @@ CREATE TABLE IF NOT EXISTS bodyweight (
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     kg REAL NOT NULL CHECK (kg > 0 AND kg < 500),
     bodyfat_pct REAL CHECK (bodyfat_pct IS NULL OR (bodyfat_pct > 0 AND bodyfat_pct < 100)),
+    context TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -83,6 +88,7 @@ CREATE TABLE IF NOT EXISTS control_pause (
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     seconds INTEGER NOT NULL CHECK (seconds > 0 AND seconds < 600),
     conditions TEXT,
+    context TEXT,
     timestamp DATETIME NOT NULL
 );
 

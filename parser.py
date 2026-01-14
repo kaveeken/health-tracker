@@ -18,13 +18,15 @@ class ParsedExercise:
     rpe: Optional[float]
     timestamp: datetime
     tags: Optional[list[str]] = None
+    context: Optional[str] = None
 
     def format_response(self) -> str:
         weight = f"{self.weight_kg}kg" if self.weight_kg else "(BW)"
         reps = f"[{','.join(map(str, self.reps))}]"
         rpe = f" RPE {self.rpe}" if self.rpe else ""
         tags = f" @{' @'.join(self.tags)}" if self.tags else ""
-        return f"{self.name} {weight} {reps}{rpe}{tags}"
+        ctx = f' "{self.context}"' if self.context else ""
+        return f"{self.name} {weight} {reps}{rpe}{tags}{ctx}"
 
     def to_dict(self) -> dict:
         return {
@@ -35,6 +37,7 @@ class ParsedExercise:
             "rpe": self.rpe,
             "timestamp": self.timestamp.isoformat(),
             "tags": self.tags,
+            "context": self.context,
         }
 
 
@@ -44,11 +47,13 @@ class ParsedHeartRate:
     conditions: Optional[str]
     timestamp: datetime
     tags: Optional[list[str]] = None
+    context: Optional[str] = None
 
     def format_response(self) -> str:
         cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
         tags = f" @{' @'.join(self.tags)}" if self.tags else ""
-        return f"HR {self.bpm} bpm{cond}{tags}"
+        ctx = f' "{self.context}"' if self.context else ""
+        return f"HR {self.bpm} bpm{cond}{tags}{ctx}"
 
     def to_dict(self) -> dict:
         return {
@@ -57,6 +62,7 @@ class ParsedHeartRate:
             "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat(),
             "tags": self.tags,
+            "context": self.context,
         }
 
 
@@ -67,11 +73,13 @@ class ParsedHRV:
     conditions: Optional[str]
     timestamp: datetime
     tags: Optional[list[str]] = None
+    context: Optional[str] = None
 
     def format_response(self) -> str:
         cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
         tags = f" @{' @'.join(self.tags)}" if self.tags else ""
-        return f"HRV {self.ms}ms ({self.metric}){cond}{tags}"
+        ctx = f' "{self.context}"' if self.context else ""
+        return f"HRV {self.ms}ms ({self.metric}){cond}{tags}{ctx}"
 
     def to_dict(self) -> dict:
         return {
@@ -81,6 +89,7 @@ class ParsedHRV:
             "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat(),
             "tags": self.tags,
+            "context": self.context,
         }
 
 
@@ -90,11 +99,13 @@ class ParsedTemperature:
     conditions: Optional[str]
     timestamp: datetime
     tags: Optional[list[str]] = None
+    context: Optional[str] = None
 
     def format_response(self) -> str:
         cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
         tags = f" @{' @'.join(self.tags)}" if self.tags else ""
-        return f"Temp {self.celsius}°C{cond}{tags}"
+        ctx = f' "{self.context}"' if self.context else ""
+        return f"Temp {self.celsius}°C{cond}{tags}{ctx}"
 
     def to_dict(self) -> dict:
         return {
@@ -103,6 +114,7 @@ class ParsedTemperature:
             "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat(),
             "tags": self.tags,
+            "context": self.context,
         }
 
 
@@ -112,11 +124,13 @@ class ParsedBodyweight:
     bodyfat_pct: Optional[float]
     timestamp: datetime
     tags: Optional[list[str]] = None
+    context: Optional[str] = None
 
     def format_response(self) -> str:
         bf = f" ({self.bodyfat_pct}% BF)" if self.bodyfat_pct else ""
         tags = f" @{' @'.join(self.tags)}" if self.tags else ""
-        return f"Weight {self.kg}kg{bf}{tags}"
+        ctx = f' "{self.context}"' if self.context else ""
+        return f"Weight {self.kg}kg{bf}{tags}{ctx}"
 
     def to_dict(self) -> dict:
         return {
@@ -125,6 +139,7 @@ class ParsedBodyweight:
             "bodyfat_pct": self.bodyfat_pct,
             "timestamp": self.timestamp.isoformat(),
             "tags": self.tags,
+            "context": self.context,
         }
 
 
@@ -134,11 +149,13 @@ class ParsedControlPause:
     conditions: Optional[str]
     timestamp: datetime
     tags: Optional[list[str]] = None
+    context: Optional[str] = None
 
     def format_response(self) -> str:
         cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
         tags = f" @{' @'.join(self.tags)}" if self.tags else ""
-        return f"CP {self.seconds}s{cond}{tags}"
+        ctx = f' "{self.context}"' if self.context else ""
+        return f"CP {self.seconds}s{cond}{tags}{ctx}"
 
     def to_dict(self) -> dict:
         return {
@@ -147,6 +164,7 @@ class ParsedControlPause:
             "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat(),
             "tags": self.tags,
+            "context": self.context,
         }
 
 
@@ -165,12 +183,28 @@ class Parser:
                 return json.load(f)
         return {"exercises": {}, "hrv_metrics": {}, "conditions": {}, "tags": {}}
 
+    def _extract_context(self, text: str) -> tuple[Optional[str], str]:
+        """Extract double-quoted context string. Returns (context, remaining_text).
+
+        Context is extracted FIRST, before any other parsing, so quotes can
+        contain any text including @tags or condition words.
+        """
+        match = re.search(r'"([^"]*)"', text)
+        if match:
+            context = match.group(1).strip()
+            remaining = text[:match.start()] + text[match.end():]
+            return context if context else None, ' '.join(remaining.split())
+        return None, text
+
     def parse(self, text: str, now: Optional[datetime] = None) -> ParsedEntry:
         """Parse a health tracker entry from text."""
         if now is None:
             now = datetime.now()
 
         text = text.strip().lower()
+
+        # Extract context FIRST (double-quoted strings)
+        context, text = self._extract_context(text)
 
         # Extract timestamp if present (@time, @yesterday, @date)
         timestamp, text = self._extract_timestamp(text, now)
@@ -187,18 +221,18 @@ class Parser:
 
         # Health metrics have specific prefixes
         if first == "hr":
-            return self._parse_heart_rate(tokens[1:], timestamp, tags)
+            return self._parse_heart_rate(tokens[1:], timestamp, tags, context)
         elif first == "hrv":
-            return self._parse_hrv(tokens[1:], timestamp, tags)
+            return self._parse_hrv(tokens[1:], timestamp, tags, context)
         elif first == "temp":
-            return self._parse_temperature(tokens[1:], timestamp, tags)
+            return self._parse_temperature(tokens[1:], timestamp, tags, context)
         elif first in ("weight", "bw"):
-            return self._parse_bodyweight(tokens[1:], timestamp, tags)
+            return self._parse_bodyweight(tokens[1:], timestamp, tags, context)
         elif first in ("cp", "pause"):
-            return self._parse_control_pause(tokens[1:], timestamp, tags)
+            return self._parse_control_pause(tokens[1:], timestamp, tags, context)
         else:
             # Must be an exercise
-            return self._parse_exercise(tokens, timestamp, tags)
+            return self._parse_exercise(tokens, timestamp, tags, context)
 
     def _extract_timestamp(self, text: str, now: datetime) -> tuple[datetime, str]:
         """Extract @timestamp from text, return (timestamp, remaining_text)."""
@@ -251,7 +285,7 @@ class Parser:
     def _parse_date(self, match: re.Match, now: datetime) -> datetime:
         return datetime.strptime(match.group(1), "%Y-%m-%d")
 
-    def _parse_exercise(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]]) -> ParsedExercise:
+    def _parse_exercise(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]], context: Optional[str]) -> ParsedExercise:
         """Parse exercise: name [weight] reps [rpe]"""
         if len(tokens) < 2:
             raise ValueError("Exercise needs at least name and reps")
@@ -317,6 +351,7 @@ class Parser:
             rpe=rpe,
             timestamp=timestamp,
             tags=tags,
+            context=context,
         )
 
     def _is_reps_pattern(self, token: str) -> bool:
@@ -338,7 +373,7 @@ class Parser:
         # Single number: 5 -> [5]
         return [int(token)]
 
-    def _parse_heart_rate(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]]) -> ParsedHeartRate:
+    def _parse_heart_rate(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]], context: Optional[str]) -> ParsedHeartRate:
         """Parse heart rate: hr BPM [conditions...]"""
         if not tokens:
             raise ValueError("Heart rate needs BPM value")
@@ -350,9 +385,9 @@ class Parser:
             aliases=self.aliases.get("conditions", {}),
         )
 
-        return ParsedHeartRate(bpm=bpm, conditions=conditions, timestamp=timestamp, tags=tags)
+        return ParsedHeartRate(bpm=bpm, conditions=conditions, timestamp=timestamp, tags=tags, context=context)
 
-    def _parse_hrv(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]]) -> ParsedHRV:
+    def _parse_hrv(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]], context: Optional[str]) -> ParsedHRV:
         """Parse HRV: hrv MS [metric] [conditions...]"""
         if not tokens:
             raise ValueError("HRV needs milliseconds value")
@@ -377,9 +412,9 @@ class Parser:
             aliases=self.aliases.get("conditions", {}),
         )
 
-        return ParsedHRV(ms=ms, metric=metric, conditions=conditions, timestamp=timestamp, tags=tags)
+        return ParsedHRV(ms=ms, metric=metric, conditions=conditions, timestamp=timestamp, tags=tags, context=context)
 
-    def _parse_temperature(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]]) -> ParsedTemperature:
+    def _parse_temperature(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]], context: Optional[str]) -> ParsedTemperature:
         """Parse temperature: temp CELSIUS [conditions...]"""
         if not tokens:
             raise ValueError("Temperature needs Celsius value")
@@ -391,9 +426,9 @@ class Parser:
             aliases=self.aliases.get("conditions", {}),
         )
 
-        return ParsedTemperature(celsius=celsius, conditions=conditions, timestamp=timestamp, tags=tags)
+        return ParsedTemperature(celsius=celsius, conditions=conditions, timestamp=timestamp, tags=tags, context=context)
 
-    def _parse_bodyweight(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]]) -> ParsedBodyweight:
+    def _parse_bodyweight(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]], context: Optional[str]) -> ParsedBodyweight:
         """Parse bodyweight: weight/bw KG [bodyfat%]"""
         if not tokens:
             raise ValueError("Bodyweight needs kg value")
@@ -407,9 +442,9 @@ class Parser:
             if bf_match:
                 bodyfat_pct = float(bf_match.group(1))
 
-        return ParsedBodyweight(kg=kg, bodyfat_pct=bodyfat_pct, timestamp=timestamp, tags=tags)
+        return ParsedBodyweight(kg=kg, bodyfat_pct=bodyfat_pct, timestamp=timestamp, tags=tags, context=context)
 
-    def _parse_control_pause(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]]) -> ParsedControlPause:
+    def _parse_control_pause(self, tokens: list[str], timestamp: datetime, tags: Optional[list[str]], context: Optional[str]) -> ParsedControlPause:
         """Parse control pause: cp SECONDS [conditions...]"""
         if not tokens:
             raise ValueError("Control pause needs seconds value")
@@ -429,7 +464,7 @@ class Parser:
             aliases=self.aliases.get("conditions", {}),
         )
 
-        return ParsedControlPause(seconds=seconds, conditions=conditions, timestamp=timestamp, tags=tags)
+        return ParsedControlPause(seconds=seconds, conditions=conditions, timestamp=timestamp, tags=tags, context=context)
 
 
 def get_entry_type(parsed: ParsedEntry) -> str:

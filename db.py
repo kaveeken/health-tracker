@@ -198,8 +198,8 @@ class Database:
             case ParsedExercise():
                 conn.execute(
                     """
-                    INSERT INTO exercises (entry_id, name, weight_kg, reps, rpe, timestamp)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO exercises (entry_id, name, weight_kg, reps, rpe, context, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         entry_id,
@@ -207,67 +207,72 @@ class Database:
                         parsed.weight_kg,
                         json.dumps(parsed.reps),
                         parsed.rpe,
+                        parsed.context,
                         parsed.timestamp.isoformat(),
                     )
                 )
             case ParsedHeartRate():
                 conn.execute(
                     """
-                    INSERT INTO heart_rate (entry_id, bpm, conditions, timestamp)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO heart_rate (entry_id, bpm, conditions, context, timestamp)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    (entry_id, parsed.bpm, parsed.conditions, parsed.timestamp.isoformat())
+                    (entry_id, parsed.bpm, parsed.conditions, parsed.context, parsed.timestamp.isoformat())
                 )
             case ParsedHRV():
                 conn.execute(
                     """
-                    INSERT INTO hrv (entry_id, ms, metric, conditions, timestamp)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO hrv (entry_id, ms, metric, conditions, context, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.ms,
                         parsed.metric,
                         parsed.conditions,
+                        parsed.context,
                         parsed.timestamp.isoformat(),
                     )
                 )
             case ParsedTemperature():
                 conn.execute(
                     """
-                    INSERT INTO temperature (entry_id, celsius, conditions, timestamp)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO temperature (entry_id, celsius, conditions, context, timestamp)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.celsius,
                         parsed.conditions,
+                        parsed.context,
                         parsed.timestamp.isoformat(),
                     )
                 )
             case ParsedBodyweight():
                 conn.execute(
                     """
-                    INSERT INTO bodyweight (entry_id, kg, bodyfat_pct, timestamp)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO bodyweight (entry_id, kg, bodyfat_pct, context, timestamp)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.kg,
                         parsed.bodyfat_pct,
+                        parsed.context,
                         parsed.timestamp.isoformat(),
                     )
                 )
             case ParsedControlPause():
                 conn.execute(
                     """
-                    INSERT INTO control_pause (entry_id, seconds, conditions, timestamp)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO control_pause (entry_id, seconds, conditions, context, timestamp)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.seconds,
                         parsed.conditions,
+                        parsed.context,
                         parsed.timestamp.isoformat(),
                     )
                 )
@@ -353,30 +358,41 @@ def format_deleted_response(info: dict) -> str:
             return ""
         return f" ({conditions.replace(',', ', ')})"
 
+    def format_ctx(context):
+        if not context:
+            return ""
+        return f' "{context}"'
+
     if entry_type == "exercise":
         weight = f"{parsed['weight_kg']}kg" if parsed.get('weight_kg') else "(BW)"
         reps = f"[{','.join(map(str, parsed['reps']))}]"
         rpe = f" RPE {parsed['rpe']}" if parsed.get('rpe') else ""
-        return f"deleted {parsed['name']} {weight} {reps}{rpe} [{info['hash']}]"
+        ctx = format_ctx(parsed.get('context'))
+        return f"deleted {parsed['name']} {weight} {reps}{rpe}{ctx} [{info['hash']}]"
 
     elif entry_type == "hr":
         cond = format_cond(parsed.get('conditions'))
-        return f"deleted HR {parsed['bpm']} bpm{cond} [{info['hash']}]"
+        ctx = format_ctx(parsed.get('context'))
+        return f"deleted HR {parsed['bpm']} bpm{cond}{ctx} [{info['hash']}]"
 
     elif entry_type == "hrv":
         cond = format_cond(parsed.get('conditions'))
-        return f"deleted HRV {parsed['ms']}ms ({parsed['metric']}){cond} [{info['hash']}]"
+        ctx = format_ctx(parsed.get('context'))
+        return f"deleted HRV {parsed['ms']}ms ({parsed['metric']}){cond}{ctx} [{info['hash']}]"
 
     elif entry_type == "temp":
         cond = format_cond(parsed.get('conditions'))
-        return f"deleted Temp {parsed['celsius']}°C{cond} [{info['hash']}]"
+        ctx = format_ctx(parsed.get('context'))
+        return f"deleted Temp {parsed['celsius']}°C{cond}{ctx} [{info['hash']}]"
 
     elif entry_type == "weight":
         bf = f" ({parsed['bodyfat_pct']}% BF)" if parsed.get('bodyfat_pct') else ""
-        return f"deleted Weight {parsed['kg']}kg{bf} [{info['hash']}]"
+        ctx = format_ctx(parsed.get('context'))
+        return f"deleted Weight {parsed['kg']}kg{bf}{ctx} [{info['hash']}]"
 
     elif entry_type == "cp":
         cond = format_cond(parsed.get('conditions'))
-        return f"deleted CP {parsed['seconds']}s{cond} [{info['hash']}]"
+        ctx = format_ctx(parsed.get('context'))
+        return f"deleted CP {parsed['seconds']}s{cond}{ctx} [{info['hash']}]"
 
     return f"deleted [{info['hash']}]"
