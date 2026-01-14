@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS heart_rate (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     bpm INTEGER NOT NULL CHECK (bpm > 0 AND bpm < 300),
-    context TEXT CHECK (context IN ('resting', 'post-workout', 'active', 'stressed', 'postprandial', NULL)),
+    conditions TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS hrv (
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     ms REAL NOT NULL CHECK (ms > 0),
     metric TEXT NOT NULL DEFAULT 'rmssd' CHECK (metric IN ('rmssd', 'sdnn', 'other')),
-    context TEXT CHECK (context IN ('morning', 'resting', 'post-workout', 'postprandial', NULL)),
+    conditions TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -60,8 +60,7 @@ CREATE TABLE IF NOT EXISTS temperature (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     celsius REAL NOT NULL CHECK (celsius > 30 AND celsius < 45),
-    technique TEXT CHECK (technique IN ('underarm', 'forehead_ir', 'oral', 'ear', NULL)),
-    context TEXT CHECK (context IN ('postprandial', NULL)),
+    conditions TEXT,
     timestamp DATETIME NOT NULL
 );
 
@@ -83,7 +82,7 @@ CREATE TABLE IF NOT EXISTS control_pause (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entry_id INTEGER NOT NULL REFERENCES raw_entries(id) ON DELETE CASCADE,
     seconds INTEGER NOT NULL CHECK (seconds > 0 AND seconds < 600),
-    context TEXT CHECK (context IN ('morning', 'evening', NULL)),
+    conditions TEXT,
     timestamp DATETIME NOT NULL
 );
 

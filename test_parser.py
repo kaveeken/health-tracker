@@ -117,86 +117,86 @@ class TestAliasResolution:
         result = parser.parse("kettlebell_swing 24 3x15", now)
         assert result.name == "kettlebell_swing"
 
-    # Heart rate context aliases
-    def test_hr_context_alias_rest(self, parser, now):
+    # Heart rate condition aliases
+    def test_hr_condition_alias_rest(self, parser, now):
         """rest -> resting"""
         result = parser.parse("hr 60 rest", now)
-        assert result.context == "resting"
+        assert result.conditions == "resting"
 
-    def test_hr_context_alias_workout(self, parser, now):
+    def test_hr_condition_alias_workout(self, parser, now):
         """workout -> post-workout"""
         result = parser.parse("hr 120 workout", now)
-        assert result.context == "post-workout"
+        assert result.conditions == "post-workout"
 
-    def test_hr_context_alias_post(self, parser, now):
+    def test_hr_condition_alias_post(self, parser, now):
         """post -> post-workout"""
         result = parser.parse("hr 110 post", now)
-        assert result.context == "post-workout"
+        assert result.conditions == "post-workout"
 
-    def test_hr_context_alias_stress(self, parser, now):
+    def test_hr_condition_alias_stress(self, parser, now):
         """stress -> stressed"""
         result = parser.parse("hr 90 stress", now)
-        assert result.context == "stressed"
+        assert result.conditions == "stressed"
 
-    def test_hr_invalid_context_ignored(self, parser, now):
-        """Invalid context is ignored."""
+    def test_hr_invalid_condition_ignored(self, parser, now):
+        """Invalid condition is ignored."""
         result = parser.parse("hr 70 walking", now)
-        assert result.context is None
+        assert result.conditions is None
 
-    # Temperature technique aliases
+    # Temperature technique aliases (now part of conditions)
     def test_temp_technique_alias_arm(self, parser, now):
-        """arm -> underarm"""
+        """arm -> underarm (in conditions)"""
         result = parser.parse("temp 36.5 arm", now)
-        assert result.technique == "underarm"
+        assert result.conditions == "underarm"
 
     def test_temp_technique_alias_ir(self, parser, now):
-        """ir -> forehead_ir"""
+        """ir -> forehead_ir (in conditions)"""
         result = parser.parse("temp 36.8 ir", now)
-        assert result.technique == "forehead_ir"
+        assert result.conditions == "forehead_ir"
 
     def test_temp_technique_alias_mouth(self, parser, now):
-        """mouth -> oral"""
+        """mouth -> oral (in conditions)"""
         result = parser.parse("temp 37.0 mouth", now)
-        assert result.technique == "oral"
+        assert result.conditions == "oral"
 
     def test_temp_technique_alias_tympanic(self, parser, now):
-        """tympanic -> ear"""
+        """tympanic -> ear (in conditions)"""
         result = parser.parse("temp 37.2 tympanic", now)
-        assert result.technique == "ear"
+        assert result.conditions == "ear"
 
-    # Postprandial context aliases
-    def test_hr_context_alias_pp(self, parser, now):
+    # Postprandial condition aliases
+    def test_hr_condition_alias_pp(self, parser, now):
         """pp -> postprandial"""
         result = parser.parse("hr 85 pp", now)
-        assert result.context == "postprandial"
+        assert result.conditions == "postprandial"
 
-    def test_hr_context_alias_fed(self, parser, now):
+    def test_hr_condition_alias_fed(self, parser, now):
         """fed -> postprandial"""
         result = parser.parse("hr 88 fed", now)
-        assert result.context == "postprandial"
+        assert result.conditions == "postprandial"
 
-    def test_hr_context_alias_meal(self, parser, now):
+    def test_hr_condition_alias_meal(self, parser, now):
         """meal -> postprandial"""
         result = parser.parse("hr 82 meal", now)
-        assert result.context == "postprandial"
+        assert result.conditions == "postprandial"
 
-    # Temperature context aliases
-    def test_temp_context_alias_pp(self, parser, now):
+    # Temperature condition aliases
+    def test_temp_condition_alias_pp(self, parser, now):
         """pp -> postprandial for temperature"""
         result = parser.parse("temp 37.1 pp", now)
-        assert result.context == "postprandial"
+        assert result.conditions == "postprandial"
 
-    def test_temp_with_technique_and_context(self, parser, now):
-        """Temperature with both technique and context."""
+    def test_temp_with_multiple_conditions(self, parser, now):
+        """Temperature with both technique and metabolic condition."""
         result = parser.parse("temp 37.2 oral pp", now)
-        assert result.technique == "oral"
-        assert result.context == "postprandial"
+        # Stored in dimension priority order: metabolic before technique
+        assert result.conditions == "postprandial,oral"
 
-    def test_temp_with_context_and_technique(self, parser, now):
-        """Temperature with context before technique (order shouldn't matter)."""
+    def test_temp_with_conditions_order_normalized(self, parser, now):
+        """Temperature conditions order is normalized regardless of input order."""
         result = parser.parse("temp 37.2 pp oral", now)
-        assert result.technique == "oral"
-        assert result.context == "postprandial"
+        # Same result regardless of input order
+        assert result.conditions == "postprandial,oral"
 
 
 # =============================================================================
@@ -333,19 +333,26 @@ class TestHeartRateParsing:
         result = parser.parse("hr 72", now)
         assert isinstance(result, ParsedHeartRate)
         assert result.bpm == 72
-        assert result.context is None
+        assert result.conditions is None
 
-    def test_hr_with_context(self, parser, now):
-        """Heart rate with context."""
+    def test_hr_with_conditions(self, parser, now):
+        """Heart rate with conditions."""
         result = parser.parse("hr 58 resting", now)
         assert result.bpm == 58
-        assert result.context == "resting"
+        assert result.conditions == "resting"
 
     def test_hr_high_bpm(self, parser, now):
         """High heart rate (post-workout)."""
         result = parser.parse("hr 165 post-workout", now)
         assert result.bpm == 165
-        assert result.context == "post-workout"
+        assert result.conditions == "post-workout"
+
+    def test_hr_multiple_conditions(self, parser, now):
+        """Heart rate with multiple conditions from different dimensions."""
+        result = parser.parse("hr 65 resting pp", now)
+        assert result.bpm == 65
+        # activity comes before metabolic in priority order
+        assert result.conditions == "resting,postprandial"
 
 
 class TestHRVParsing:
@@ -357,24 +364,30 @@ class TestHRVParsing:
         assert isinstance(result, ParsedHRV)
         assert result.ms == 45.0
         assert result.metric == "rmssd"
-        assert result.context is None
+        assert result.conditions is None
 
     def test_hrv_with_metric(self, parser, now):
         """HRV with explicit metric."""
         result = parser.parse("hrv 50 sdnn", now)
         assert result.metric == "sdnn"
 
-    def test_hrv_with_context(self, parser, now):
-        """HRV with context."""
+    def test_hrv_with_conditions(self, parser, now):
+        """HRV with conditions."""
         result = parser.parse("hrv 55 rmssd morning", now)
         assert result.ms == 55.0
         assert result.metric == "rmssd"
-        assert result.context == "morning"
+        assert result.conditions == "morning"
 
     def test_hrv_decimal(self, parser, now):
         """HRV with decimal value."""
         result = parser.parse("hrv 42.5 rmssd", now)
         assert result.ms == 42.5
+
+    def test_hrv_multiple_conditions(self, parser, now):
+        """HRV with multiple conditions."""
+        result = parser.parse("hrv 50 resting morning", now)
+        # activity before time_of_day in priority order
+        assert result.conditions == "resting,morning"
 
 
 class TestTemperatureParsing:
@@ -385,13 +398,13 @@ class TestTemperatureParsing:
         result = parser.parse("temp 36.6", now)
         assert isinstance(result, ParsedTemperature)
         assert result.celsius == 36.6
-        assert result.technique is None
+        assert result.conditions is None
 
     def test_temp_with_technique(self, parser, now):
-        """Temperature with technique."""
+        """Temperature with technique (now in conditions)."""
         result = parser.parse("temp 36.8 oral", now)
         assert result.celsius == 36.8
-        assert result.technique == "oral"
+        assert result.conditions == "oral"
 
     def test_temp_integer(self, parser, now):
         """Temperature as integer."""
@@ -441,7 +454,7 @@ class TestControlPauseParsing:
         result = parser.parse("cp 45", now)
         assert isinstance(result, ParsedControlPause)
         assert result.seconds == 45
-        assert result.context is None
+        assert result.conditions is None
 
     def test_pause_prefix(self, parser, now):
         """Control pause with pause prefix."""
@@ -454,29 +467,29 @@ class TestControlPauseParsing:
         result = parser.parse("cp 60s", now)
         assert result.seconds == 60
 
-    def test_cp_with_morning_context(self, parser, now):
-        """Control pause with morning context."""
+    def test_cp_with_morning_condition(self, parser, now):
+        """Control pause with morning condition."""
         result = parser.parse("cp 45 morning", now)
         assert result.seconds == 45
-        assert result.context == "morning"
+        assert result.conditions == "morning"
 
-    def test_cp_with_evening_context(self, parser, now):
-        """Control pause with evening context."""
+    def test_cp_with_evening_condition(self, parser, now):
+        """Control pause with evening condition."""
         result = parser.parse("cp 50 evening", now)
         assert result.seconds == 50
-        assert result.context == "evening"
+        assert result.conditions == "evening"
 
-    def test_cp_invalid_context_ignored(self, parser, now):
-        """Invalid context is ignored."""
+    def test_cp_invalid_condition_ignored(self, parser, now):
+        """Invalid condition is ignored."""
         result = parser.parse("cp 40 afternoon", now)
         assert result.seconds == 40
-        assert result.context is None
+        assert result.conditions is None
 
     def test_cp_with_timestamp(self, parser, now):
         """Control pause with timestamp."""
         result = parser.parse("cp 35 morning @08:00", now)
         assert result.seconds == 35
-        assert result.context == "morning"
+        assert result.conditions == "morning"
         assert result.timestamp.hour == 8
 
 
@@ -566,11 +579,11 @@ class TestFormatResponse:
         result = parser.parse("pullups 3x10", now)
         assert result.format_response() == "pullups (BW) [10,10,10]"
 
-    def test_hr_format_with_context(self, parser, now):
+    def test_hr_format_with_conditions(self, parser, now):
         result = parser.parse("hr 60 resting", now)
         assert result.format_response() == "HR 60 bpm (resting)"
 
-    def test_hr_format_no_context(self, parser, now):
+    def test_hr_format_no_conditions(self, parser, now):
         result = parser.parse("hr 72", now)
         assert result.format_response() == "HR 72 bpm"
 
@@ -582,19 +595,19 @@ class TestFormatResponse:
         result = parser.parse("temp 36.6 oral", now)
         assert result.format_response() == "Temp 36.6°C (oral)"
 
-    def test_temp_format_with_context(self, parser, now):
+    def test_temp_format_with_multiple_conditions(self, parser, now):
         result = parser.parse("temp 37.1 oral pp", now)
-        assert result.format_response() == "Temp 37.1°C (oral) [postprandial]"
+        assert result.format_response() == "Temp 37.1°C (postprandial, oral)"
 
     def test_weight_format_with_bf(self, parser, now):
         result = parser.parse("weight 80 15", now)
         assert result.format_response() == "Weight 80.0kg (15.0% BF)"
 
-    def test_cp_format_with_context(self, parser, now):
+    def test_cp_format_with_conditions(self, parser, now):
         result = parser.parse("cp 45 morning", now)
         assert result.format_response() == "CP 45s (morning)"
 
-    def test_cp_format_no_context(self, parser, now):
+    def test_cp_format_no_conditions(self, parser, now):
         result = parser.parse("cp 35", now)
         assert result.format_response() == "CP 35s"
 
@@ -621,7 +634,7 @@ class TestToDict:
         d = result.to_dict()
         assert d["type"] == "hr"
         assert d["bpm"] == 60
-        assert d["context"] == "resting"
+        assert d["conditions"] == "resting"
 
     def test_hrv_to_dict(self, parser, now):
         result = parser.parse("hrv 45", now)
@@ -636,13 +649,12 @@ class TestToDict:
         assert d["type"] == "temp"
         assert d["celsius"] == 36.6
 
-    def test_temp_to_dict_with_context(self, parser, now):
+    def test_temp_to_dict_with_conditions(self, parser, now):
         result = parser.parse("temp 37.1 oral pp", now)
         d = result.to_dict()
         assert d["type"] == "temp"
         assert d["celsius"] == 37.1
-        assert d["technique"] == "oral"
-        assert d["context"] == "postprandial"
+        assert d["conditions"] == "postprandial,oral"
 
     def test_weight_to_dict(self, parser, now):
         result = parser.parse("weight 80", now)
@@ -655,5 +667,5 @@ class TestToDict:
         d = result.to_dict()
         assert d["type"] == "cp"
         assert d["seconds"] == 45
-        assert d["context"] == "morning"
+        assert d["conditions"] == "morning"
         assert "timestamp" in d

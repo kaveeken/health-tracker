@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from conditions import parse_conditions, format_conditions
+
 
 @dataclass
 class ParsedExercise:
@@ -36,18 +38,18 @@ class ParsedExercise:
 @dataclass
 class ParsedHeartRate:
     bpm: int
-    context: Optional[str]
+    conditions: Optional[str]
     timestamp: datetime
 
     def format_response(self) -> str:
-        ctx = f" ({self.context})" if self.context else ""
-        return f"HR {self.bpm} bpm{ctx}"
+        cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
+        return f"HR {self.bpm} bpm{cond}"
 
     def to_dict(self) -> dict:
         return {
             "type": "hr",
             "bpm": self.bpm,
-            "context": self.context,
+            "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat()
         }
 
@@ -56,19 +58,19 @@ class ParsedHeartRate:
 class ParsedHRV:
     ms: float
     metric: str
-    context: Optional[str]
+    conditions: Optional[str]
     timestamp: datetime
 
     def format_response(self) -> str:
-        ctx = f" ({self.context})" if self.context else ""
-        return f"HRV {self.ms}ms ({self.metric}){ctx}"
+        cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
+        return f"HRV {self.ms}ms ({self.metric}){cond}"
 
     def to_dict(self) -> dict:
         return {
             "type": "hrv",
             "ms": self.ms,
             "metric": self.metric,
-            "context": self.context,
+            "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat()
         }
 
@@ -76,21 +78,18 @@ class ParsedHRV:
 @dataclass
 class ParsedTemperature:
     celsius: float
-    technique: Optional[str]
-    context: Optional[str]
+    conditions: Optional[str]
     timestamp: datetime
 
     def format_response(self) -> str:
-        tech = f" ({self.technique})" if self.technique else ""
-        ctx = f" [{self.context}]" if self.context else ""
-        return f"Temp {self.celsius}°C{tech}{ctx}"
+        cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
+        return f"Temp {self.celsius}°C{cond}"
 
     def to_dict(self) -> dict:
         return {
             "type": "temp",
             "celsius": self.celsius,
-            "technique": self.technique,
-            "context": self.context,
+            "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat()
         }
 
@@ -117,18 +116,18 @@ class ParsedBodyweight:
 @dataclass
 class ParsedControlPause:
     seconds: int
-    context: Optional[str]
+    conditions: Optional[str]
     timestamp: datetime
 
     def format_response(self) -> str:
-        ctx = f" ({self.context})" if self.context else ""
-        return f"CP {self.seconds}s{ctx}"
+        cond = f" {format_conditions(self.conditions)}" if self.conditions else ""
+        return f"CP {self.seconds}s{cond}"
 
     def to_dict(self) -> dict:
         return {
             "type": "cp",
             "seconds": self.seconds,
-            "context": self.context,
+            "conditions": self.conditions,
             "timestamp": self.timestamp.isoformat()
         }
 
@@ -146,7 +145,7 @@ class Parser:
         if path.exists():
             with open(path) as f:
                 return json.load(f)
-        return {"exercises": {}, "hr_contexts": {}, "hrv_metrics": {}, "temp_techniques": {}, "temp_contexts": {}}
+        return {"exercises": {}, "hrv_metrics": {}, "conditions": {}}
 
     def parse(self, text: str, now: Optional[datetime] = None) -> ParsedEntry:
         """Parse a health tracker entry from text."""
@@ -292,31 +291,27 @@ class Parser:
         return [int(token)]
 
     def _parse_heart_rate(self, tokens: list[str], timestamp: datetime) -> ParsedHeartRate:
-        """Parse heart rate: hr BPM [context]"""
+        """Parse heart rate: hr BPM [conditions...]"""
         if not tokens:
             raise ValueError("Heart rate needs BPM value")
 
         bpm = int(tokens[0])
-        context = None
+        conditions = parse_conditions(
+            tokens[1:],
+            entry_type="hr",
+            aliases=self.aliases.get("conditions", {}),
+        )
 
-        if len(tokens) > 1:
-            ctx_raw = tokens[1]
-            context = self.aliases.get("hr_contexts", {}).get(ctx_raw, ctx_raw)
-            # Validate context
-            valid = {'resting', 'post-workout', 'active', 'stressed', 'postprandial'}
-            if context not in valid:
-                context = None
-
-        return ParsedHeartRate(bpm=bpm, context=context, timestamp=timestamp)
+        return ParsedHeartRate(bpm=bpm, conditions=conditions, timestamp=timestamp)
 
     def _parse_hrv(self, tokens: list[str], timestamp: datetime) -> ParsedHRV:
-        """Parse HRV: hrv MS [metric] [context]"""
+        """Parse HRV: hrv MS [metric] [conditions...]"""
         if not tokens:
             raise ValueError("HRV needs milliseconds value")
 
         ms = float(tokens[0])
         metric = "rmssd"  # default
-        context = None
+        condition_tokens = []
 
         for token in tokens[1:]:
             # Check if it's a metric
@@ -324,36 +319,31 @@ class Parser:
                 metric = self.aliases["hrv_metrics"][token]
             elif token in ("rmssd", "sdnn"):
                 metric = token
-            # Check if it's a context
-            elif token in ("morning", "resting", "post-workout", "postprandial"):
-                context = token
+            else:
+                # Assume it's a condition
+                condition_tokens.append(token)
 
-        return ParsedHRV(ms=ms, metric=metric, context=context, timestamp=timestamp)
+        conditions = parse_conditions(
+            condition_tokens,
+            entry_type="hrv",
+            aliases=self.aliases.get("conditions", {}),
+        )
+
+        return ParsedHRV(ms=ms, metric=metric, conditions=conditions, timestamp=timestamp)
 
     def _parse_temperature(self, tokens: list[str], timestamp: datetime) -> ParsedTemperature:
-        """Parse temperature: temp CELSIUS [technique] [context]"""
+        """Parse temperature: temp CELSIUS [conditions...]"""
         if not tokens:
             raise ValueError("Temperature needs Celsius value")
 
         celsius = float(tokens[0])
-        technique = None
-        context = None
+        conditions = parse_conditions(
+            tokens[1:],
+            entry_type="temp",
+            aliases=self.aliases.get("conditions", {}),
+        )
 
-        valid_techniques = {'underarm', 'forehead_ir', 'oral', 'ear'}
-        valid_contexts = {'postprandial'}
-
-        for token in tokens[1:]:
-            # Try as technique first
-            resolved = self.aliases.get("temp_techniques", {}).get(token, token)
-            if resolved in valid_techniques:
-                technique = resolved
-                continue
-            # Try as context
-            resolved = self.aliases.get("temp_contexts", {}).get(token, token)
-            if resolved in valid_contexts:
-                context = resolved
-
-        return ParsedTemperature(celsius=celsius, technique=technique, context=context, timestamp=timestamp)
+        return ParsedTemperature(celsius=celsius, conditions=conditions, timestamp=timestamp)
 
     def _parse_bodyweight(self, tokens: list[str], timestamp: datetime) -> ParsedBodyweight:
         """Parse bodyweight: weight/bw KG [bodyfat%]"""
@@ -372,7 +362,7 @@ class Parser:
         return ParsedBodyweight(kg=kg, bodyfat_pct=bodyfat_pct, timestamp=timestamp)
 
     def _parse_control_pause(self, tokens: list[str], timestamp: datetime) -> ParsedControlPause:
-        """Parse control pause: cp SECONDS [context]"""
+        """Parse control pause: cp SECONDS [conditions...]"""
         if not tokens:
             raise ValueError("Control pause needs seconds value")
 
@@ -385,13 +375,13 @@ class Parser:
         if seconds <= 0 or seconds >= 600:
             raise ValueError("Seconds must be between 1 and 599")
 
-        context = None
-        if len(tokens) > 1:
-            ctx = tokens[1]
-            if ctx in ('morning', 'evening'):
-                context = ctx
+        conditions = parse_conditions(
+            tokens[1:],
+            entry_type="cp",
+            aliases=self.aliases.get("conditions", {}),
+        )
 
-        return ParsedControlPause(seconds=seconds, context=context, timestamp=timestamp)
+        return ParsedControlPause(seconds=seconds, conditions=conditions, timestamp=timestamp)
 
 
 def get_entry_type(parsed: ParsedEntry) -> str:

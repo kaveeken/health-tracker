@@ -47,38 +47,42 @@
     "dbbp": "dumbbell bench press",
     "dbohp": "dumbbell overhead press"
   },
-  "hr_contexts": {
-    "rest": "resting",
-    "resting": "resting",
-    "workout": "post-workout",
-    "post": "post-workout",
-    "active": "active",
-    "stressed": "stressed",
-    "stress": "stressed",
-    "pp": "postprandial",
-    "postprandial": "postprandial",
-    "fed": "postprandial",
-    "meal": "postprandial"
-  },
   "hrv_metrics": {
     "rmssd": "rmssd",
     "sdnn": "sdnn"
   },
-  "temp_techniques": {
+  "conditions": {
+    "rest": "resting",
+    "resting": "resting",
+    "wake": "waking",
+    "waking": "waking",
+    "active": "active",
+    "workout": "post-workout",
+    "post": "post-workout",
+    "post-workout": "post-workout",
+    "morning": "morning",
+    "am": "morning",
+    "evening": "evening",
+    "pm": "evening",
+    "pp": "postprandial",
+    "postprandial": "postprandial",
+    "fed": "postprandial",
+    "meal": "postprandial",
+    "fasted": "fasted",
+    "fasting": "fasted",
+    "stressed": "stressed",
+    "stress": "stressed",
+    "relaxed": "relaxed",
+    "calm": "relaxed",
+    "oral": "oral",
+    "mouth": "oral",
     "underarm": "underarm",
     "arm": "underarm",
     "axillary": "underarm",
     "ir": "forehead_ir",
     "forehead": "forehead_ir",
-    "oral": "oral",
-    "mouth": "oral",
+    "forehead_ir": "forehead_ir",
     "ear": "ear",
     "tympanic": "ear"
-  },
-  "temp_contexts": {
-    "pp": "postprandial",
-    "postprandial": "postprandial",
-    "fed": "postprandial",
-    "meal": "postprandial"
   }
 }

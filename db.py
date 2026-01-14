@@ -210,36 +210,35 @@ class Database:
             case ParsedHeartRate():
                 conn.execute(
                     """
-                    INSERT INTO heart_rate (entry_id, bpm, context, timestamp)
+                    INSERT INTO heart_rate (entry_id, bpm, conditions, timestamp)
                     VALUES (?, ?, ?, ?)
                     """,
-                    (entry_id, parsed.bpm, parsed.context, parsed.timestamp.isoformat())
+                    (entry_id, parsed.bpm, parsed.conditions, parsed.timestamp.isoformat())
                 )
             case ParsedHRV():
                 conn.execute(
                     """
-                    INSERT INTO hrv (entry_id, ms, metric, context, timestamp)
+                    INSERT INTO hrv (entry_id, ms, metric, conditions, timestamp)
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.ms,
                         parsed.metric,
-                        parsed.context,
+                        parsed.conditions,
                         parsed.timestamp.isoformat(),
                     )
                 )
             case ParsedTemperature():
                 conn.execute(
                     """
-                    INSERT INTO temperature (entry_id, celsius, technique, context, timestamp)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO temperature (entry_id, celsius, conditions, timestamp)
+                    VALUES (?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.celsius,
-                        parsed.technique,
-                        parsed.context,
+                        parsed.conditions,
                         parsed.timestamp.isoformat(),
                     )
                 )
@@ -259,13 +258,13 @@ class Database:
             case ParsedControlPause():
                 conn.execute(
                     """
-                    INSERT INTO control_pause (entry_id, seconds, context, timestamp)
+                    INSERT INTO control_pause (entry_id, seconds, conditions, timestamp)
                     VALUES (?, ?, ?, ?)
                     """,
                     (
                         entry_id,
                         parsed.seconds,
-                        parsed.context,
+                        parsed.conditions,
                         parsed.timestamp.isoformat(),
                     )
                 )
@@ -293,6 +292,11 @@ def format_deleted_response(info: dict) -> str:
 
     entry_type = parsed.get("type")
 
+    def format_cond(conditions):
+        if not conditions:
+            return ""
+        return f" ({conditions.replace(',', ', ')})"
+
     if entry_type == "exercise":
         weight = f"{parsed['weight_kg']}kg" if parsed.get('weight_kg') else "(BW)"
         reps = f"[{','.join(map(str, parsed['reps']))}]"
@@ -300,23 +304,23 @@ def format_deleted_response(info: dict) -> str:
         return f"deleted {parsed['name']} {weight} {reps}{rpe} [{info['hash']}]"
 
     elif entry_type == "hr":
-        ctx = f" ({parsed['context']})" if parsed.get('context') else ""
-        return f"deleted HR {parsed['bpm']} bpm{ctx} [{info['hash']}]"
+        cond = format_cond(parsed.get('conditions'))
+        return f"deleted HR {parsed['bpm']} bpm{cond} [{info['hash']}]"
 
     elif entry_type == "hrv":
-        return f"deleted HRV {parsed['ms']}ms ({parsed['metric']}) [{info['hash']}]"
+        cond = format_cond(parsed.get('conditions'))
+        return f"deleted HRV {parsed['ms']}ms ({parsed['metric']}){cond} [{info['hash']}]"
 
     elif entry_type == "temp":
-        tech = f" ({parsed['technique']})" if parsed.get('technique') else ""
-        ctx = f" [{parsed['context']}]" if parsed.get('context') else ""
-        return f"deleted Temp {parsed['celsius']}°C{tech}{ctx} [{info['hash']}]"
+        cond = format_cond(parsed.get('conditions'))
+        return f"deleted Temp {parsed['celsius']}°C{cond} [{info['hash']}]"
 
     elif entry_type == "weight":
         bf = f" ({parsed['bodyfat_pct']}% BF)" if parsed.get('bodyfat_pct') else ""
         return f"deleted Weight {parsed['kg']}kg{bf} [{info['hash']}]"
 
     elif entry_type == "cp":
-        ctx = f" ({parsed['context']})" if parsed.get('context') else ""
-        return f"deleted CP {parsed['seconds']}s{ctx} [{info['hash']}]"
+        cond = format_cond(parsed.get('conditions'))
+        return f"deleted CP {parsed['seconds']}s{cond} [{info['hash']}]"
 
     return f"deleted [{info['hash']}]"
