@@ -184,12 +184,22 @@ The SQLite database is at: {db_path}
 
 Tables:
 - raw_entries: id, hash, timestamp, raw_text, entry_type, deleted_at
-- exercises: entry_id, name, weight_kg, reps (JSON array), rpe, timestamp
-- heart_rate: entry_id, bpm, context, timestamp
-- hrv: entry_id, ms, metric, context, timestamp
-- temperature: entry_id, celsius, technique, context, timestamp
-- bodyweight: entry_id, kg, bodyfat_pct, timestamp
-- control_pause: entry_id, seconds, context (morning/evening), timestamp
+- exercises: entry_id, name, weight_kg, reps (JSON array), rpe, context, timestamp
+- heart_rate: entry_id, bpm, conditions, context, timestamp
+- hrv: entry_id, ms, metric, conditions, context, timestamp
+- temperature: entry_id, celsius, conditions, context, timestamp
+- bodyweight: entry_id, kg, bodyfat_pct, context, timestamp
+- control_pause: entry_id, seconds, conditions, context, timestamp
+
+The `conditions` column stores space-separated condition values from these dimensions:
+- activity: waking, resting, active, post-workout
+- time_of_day: morning, evening
+- metabolic: postprandial, fasted
+- emotional: stressed, relaxed
+- technique (temp only): oral, underarm, forehead_ir, ear
+
+To filter by condition, use: WHERE conditions LIKE '%fasted%'
+Multiple conditions can be combined: "morning fasted" means both apply.
 
 Only include non-deleted entries (WHERE deleted_at IS NULL when joining with raw_entries).
 
