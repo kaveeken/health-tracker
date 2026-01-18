@@ -310,72 +310,92 @@ def volume_breakdown(
 
 def bodyweight_trend(
     db_path: Path,
-    days: int = 90,
+    days: Optional[int] = None,
     save_path: Path = Path("/tmp/chart.png"),
 ) -> Path:
-    """Plot bodyweight trend over time.
+    """Plot bodyweight trend over time (total weight and lean mass).
 
     Args:
         db_path: Path to SQLite database
-        days: Number of days to include (default 90)
+        days: Number of days to include (default None = all entries)
         save_path: Where to save the chart
 
     Returns:
         Path to saved chart file
     """
-    cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
-
     query = """
         SELECT b.timestamp, b.kg, b.bodyfat_pct
         FROM bodyweight b
         JOIN raw_entries r ON b.entry_id = r.id
         WHERE r.deleted_at IS NULL
-          AND b.timestamp >= ?
-        ORDER BY b.timestamp
     """
+
+    params = []
+    if days is not None:
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+        query += " AND b.timestamp >= ?"
+        params.append(cutoff_date)
+
+    query += " ORDER BY b.timestamp"
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    cursor = conn.execute(query, [cutoff_date])
+    cursor = conn.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
 
     if not rows:
-        raise ValueError(f"No bodyweight data found in the last {days} days")
+        period = f"in the last {days} days" if days else "found"
+        raise ValueError(f"No bodyweight data {period}")
 
-    # Parse data
-    timestamps = [datetime.fromisoformat(row['timestamp']) for row in rows]
-    weights = [row['kg'] for row in rows]
-    bodyfat_pcts = [row['bodyfat_pct'] for row in rows if row['bodyfat_pct']]
-    bf_timestamps = [datetime.fromisoformat(row['timestamp']) for row in rows if row['bodyfat_pct']]
+    # Parse data and calculate lean mass
+    timestamps = []
+    total_weights = []
+    lean_masses = []
+
+    for row in rows:
+        timestamps.append(datetime.fromisoformat(row['timestamp']))
+        total_weight = row['kg']
+        total_weights.append(total_weight)
+
+        # Calculate lean mass if bodyfat % is available
+        if row['bodyfat_pct']:
+            lean_mass = total_weight * (1 - row['bodyfat_pct'] / 100)
+            lean_masses.append(lean_mass)
+        else:
+            lean_masses.append(None)
 
     # Create plot
     plt.style.use('seaborn-v0_8-darkgrid')
-    fig, ax1 = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Weight on left axis
-    color = 'tab:blue'
-    ax1.set_xlabel('Date')
-    ax1.set_ylabel('Weight (kg)', color=color)
-    ax1.plot(timestamps, weights, marker='o', color=color, linewidth=2, markersize=6)
-    ax1.tick_params(axis='y', labelcolor=color)
-    ax1.grid(True, alpha=0.3)
+    # Plot total weight
+    ax.plot(timestamps, total_weights, marker='o', color='tab:blue',
+            label='Total Weight', linewidth=2, markersize=6)
 
-    # Bodyfat % on right axis if data exists
-    if bodyfat_pcts:
-        ax2 = ax1.twinx()
-        color = 'tab:orange'
-        ax2.set_ylabel('Body Fat %', color=color)
-        ax2.plot(bf_timestamps, bodyfat_pcts, marker='s', color=color, linewidth=2, markersize=6, linestyle='--')
-        ax2.tick_params(axis='y', labelcolor=color)
+    # Plot lean mass where available
+    lean_timestamps = [ts for ts, lm in zip(timestamps, lean_masses) if lm is not None]
+    lean_values = [lm for lm in lean_masses if lm is not None]
 
-    # Format x-axis
-    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
-    ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
+    if lean_values:
+        ax.plot(lean_timestamps, lean_values, marker='s', color='tab:green',
+                label='Lean Mass', linewidth=2, markersize=6, linestyle='--')
+
+    # Format axes
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Weight (kg)')
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     plt.xticks(rotation=45, ha='right')
 
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='best')
+
     # Title
-    ax1.set_title(f"Bodyweight Trend - Last {days} Days")
+    title = "Bodyweight Trend"
+    if days:
+        title += f" - Last {days} Days"
+    ax.set_title(title)
 
     plt.tight_layout()
 
