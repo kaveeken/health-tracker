@@ -209,9 +209,12 @@ For charts, use the charts.py module with these functions:
 - metric_trend(db_path, metric_type, days=30, context=None, show_all_contexts=False) - metric_type: 'hr', 'hrv', 'temp', 'cp'
 - exercise_progress(db_path, exercise_name, days=90) - weight and volume over time
 - volume_breakdown(db_path, days=7) - bar chart of volume by exercise
-- bodyweight_trend(db_path, days=None) - total weight and lean mass over time (days=None plots all entries)
+- bodyweight_trend(db_path) - stacked area chart of lean/fat mass. Plots ALL entries by default. Add days=N to limit.
 
-All functions save to /tmp/chart.png by default. Example: from charts import metric_trend; metric_trend(Path('{db_path}'), 'hrv', days=30, show_all_contexts=True)
+All functions save to /tmp/chart.png by default.
+Examples:
+  from charts import metric_trend; metric_trend(Path('{db_path}'), 'hrv', days=30)
+  from charts import bodyweight_trend; bodyweight_trend(Path('{db_path}'))  # all entries
 """
         # Run Claude Code with pre-approved permissions
         logger.info(f"Running claude query: {query[:50]}...")
