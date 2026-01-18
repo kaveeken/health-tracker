@@ -348,38 +348,51 @@ def bodyweight_trend(
         period = f"in the last {days} days" if days else "found"
         raise ValueError(f"No bodyweight data {period}")
 
-    # Parse data and calculate lean mass
+    # Parse data and calculate lean/fat mass
     timestamps = []
     total_weights = []
     lean_masses = []
+    fat_masses = []
 
     for row in rows:
         timestamps.append(datetime.fromisoformat(row['timestamp']))
         total_weight = row['kg']
         total_weights.append(total_weight)
 
-        # Calculate lean mass if bodyfat % is available
+        # Calculate lean and fat mass if bodyfat % is available
         if row['bodyfat_pct']:
-            lean_mass = total_weight * (1 - row['bodyfat_pct'] / 100)
+            fat_mass = total_weight * (row['bodyfat_pct'] / 100)
+            lean_mass = total_weight - fat_mass
             lean_masses.append(lean_mass)
+            fat_masses.append(fat_mass)
         else:
             lean_masses.append(None)
+            fat_masses.append(None)
 
     # Create plot
     plt.style.use('seaborn-v0_8-darkgrid')
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Plot total weight
-    ax.plot(timestamps, total_weights, marker='o', color='tab:blue',
-            label='Total Weight', linewidth=2, markersize=6)
+    # Filter to only entries with bodyfat data for stacked area
+    bf_timestamps = [ts for ts, lm in zip(timestamps, lean_masses) if lm is not None]
+    bf_lean = [lm for lm in lean_masses if lm is not None]
+    bf_fat = [fm for fm in fat_masses if fm is not None]
 
-    # Plot lean mass where available
-    lean_timestamps = [ts for ts, lm in zip(timestamps, lean_masses) if lm is not None]
-    lean_values = [lm for lm in lean_masses if lm is not None]
+    if bf_lean:
+        # Stacked area chart: lean mass (base) + fat mass (stacked on top)
+        ax.fill_between(bf_timestamps, 0, bf_lean,
+                       label='Lean Mass', color='tab:green', alpha=0.6)
+        ax.fill_between(bf_timestamps, bf_lean,
+                       [l + f for l, f in zip(bf_lean, bf_fat)],
+                       label='Fat Mass', color='tab:orange', alpha=0.6)
 
-    if lean_values:
-        ax.plot(lean_timestamps, lean_values, marker='s', color='tab:green',
-                label='Lean Mass', linewidth=2, markersize=6, linestyle='--')
+        # Add line for total weight on top
+        ax.plot(bf_timestamps, [l + f for l, f in zip(bf_lean, bf_fat)],
+               color='black', linewidth=1.5, alpha=0.7, label='Total Weight')
+    else:
+        # Fallback: just plot total weight if no bodyfat data
+        ax.plot(timestamps, total_weights, marker='o', color='tab:blue',
+               label='Total Weight', linewidth=2, markersize=6)
 
     # Format axes
     ax.set_xlabel('Date')
@@ -388,7 +401,7 @@ def bodyweight_trend(
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     plt.xticks(rotation=45, ha='right')
 
-    ax.grid(True, alpha=0.3)
+    ax.grid(True, alpha=0.3, zorder=0)
     ax.legend(loc='best')
 
     # Title
