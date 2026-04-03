@@ -4,13 +4,12 @@ After=network.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/health-tracker
+WorkingDirectory=/home/pi/proj/health-tracker
 Environment=TELEGRAM_BOT_TOKEN=your_token_here
 Environment=ALLOWED_USER_IDS=your_user_id_here
-ExecStart=/usr/bin/python3 /home/pi/health-tracker/bot.py
+ExecStart=/home/pi/proj/health-tracker/.venv/bin/python /home/pi/proj/health-tracker/bot.py
 Restart=always
 RestartSec=10
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
