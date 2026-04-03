@@ -45,7 +45,10 @@
     "ham": "leg curl",
     "hamstring": "leg curl",
     "dbbp": "dumbbell bench press",
-    "dbohp": "dumbbell overhead press"
+    "dbohp": "dumbbell overhead press",
+    "pcurl": "pinwheel curl",
+    "hs": "hack squat",
+    "legex": "leg extension"
   },
   "hrv_metrics": {
     "rmssd": "rmssd",

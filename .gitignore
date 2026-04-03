@@ -1,9 +1,12 @@
 __pycache__/
 *.py[cod]
 *.db
+*.db.backup
 .env
 /charts/
 *.png
 .venv/
 health-tracker.service
 backups/
+nohup.out
+*.csv
