@@ -220,7 +220,7 @@ Examples:
         logger.info(f"Running claude query: {query[:50]}...")
         result = subprocess.run(
             [
-                "claude",
+                "/home/pi/.local/bin/claude",
                 "-p", prompt,
                 "--model", "sonnet",
                 "--output-format", "json",
